@@ -1,43 +1,87 @@
 "use client";
 
-import { LayoutDashboard, LogOut, Menu, Package, X } from "lucide-react";
+import {
+	LayoutDashboard,
+	LogOut,
+	Menu,
+	GraduationCap,
+	X,
+	BookOpen,
+	Users,
+	BarChart3,
+	FileText,
+	Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// ナビゲーション項目の定義（プロジェクトに応じてカスタマイズ）
-const navigationItems = [
+// 管理者用ナビゲーション項目
+const adminNavigationItems = [
+	{
+		title: "管理者ダッシュボード",
+		href: "/admin/dashboard",
+		icon: LayoutDashboard,
+		description: "全体の学習状況を把握",
+	},
+	{
+		title: "コース管理",
+		href: "/admin/courses",
+		icon: BookOpen,
+		description: "コースの作成・編集・管理",
+	},
+	{
+		title: "受講者管理",
+		href: "/admin/users",
+		icon: Users,
+		description: "受講者の登録・管理",
+	},
+	{
+		title: "レポート",
+		href: "/admin/reports",
+		icon: BarChart3,
+		description: "進捗レポート・統計",
+	},
+];
+
+// 受講者用ナビゲーション項目
+const learnerNavigationItems = [
 	{
 		title: "ダッシュボード",
 		href: "/dashboard",
 		icon: LayoutDashboard,
-		description: "概要とメトリクス",
+		description: "学習状況の確認",
 	},
 	{
-		title: "アイテム管理",
-		href: "/items",
-		icon: Package,
-		description: "アイテムの登録・管理",
+		title: "コース一覧",
+		href: "/courses",
+		icon: BookOpen,
+		description: "受講可能なコース",
 	},
-	// Add more navigation items as needed
-	// {
-	//   title: "設定",
-	//   href: "/settings",
-	//   icon: Database,
-	//   description: "システム設定"
-	// }
+	{
+		title: "学習履歴",
+		href: "/learning-history",
+		icon: FileText,
+		description: "過去の学習記録",
+	},
 ];
 
 export function MainNav() {
 	const pathname = usePathname();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+	const { data: session } = useSession();
 
 	const handleSignOut = () => {
 		signOut({ callbackUrl: "/login" });
 	};
+
+	// ユーザーの役割に応じてナビゲーション項目を決定
+	const navigationItems = session?.user?.role === "admin" 
+		? adminNavigationItems 
+		: learnerNavigationItems;
 
 	return (
 		<nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
@@ -45,13 +89,16 @@ export function MainNav() {
 				<div className="flex justify-between items-center h-16">
 					{/* ロゴ・タイトル */}
 					<div className="flex items-center">
-						<Link href="/dashboard" className="flex items-center space-x-2">
-							<Package className="h-8 w-8 text-blue-600" />
+						<Link 
+							href={session?.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"} 
+							className="flex items-center space-x-2"
+						>
+							<GraduationCap className="h-8 w-8 text-blue-600" />
 							<span className="text-xl font-bold text-slate-900 hidden sm:block">
-								アプリケーション
+								学習管理システム
 							</span>
 							<span className="text-xl font-bold text-slate-900 sm:hidden">
-								App
+								LMS
 							</span>
 						</Link>
 					</div>
