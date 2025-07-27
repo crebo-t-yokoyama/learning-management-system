@@ -1,9 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, BookOpen, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { type LoginSchema, loginSchema } from "@/lib/validations";
 
 export function LoginForm() {
@@ -52,7 +53,14 @@ export function LoginForm() {
 			if (result?.error) {
 				setError("メールアドレスまたはパスワードが正しくありません");
 			} else if (result?.ok) {
-				router.push("/dashboard");
+				// セッションを取得してユーザー役割に応じてリダイレクト
+				const session = await getSession();
+				if (session?.user?.role) {
+					const dashboardUrl = session.user.role === "admin" ? "/admin" : "/learner";
+					router.push(dashboardUrl);
+				} else {
+					router.push("/dashboard");
+				}
 			}
 		} catch (_error) {
 			setError("ログイン中にエラーが発生しました");
@@ -62,17 +70,17 @@ export function LoginForm() {
 	}
 
 	return (
-		<Card className="w-full max-w-md">
-			<CardHeader className="space-y-1">
-				<CardTitle className="text-2xl text-center">ログイン</CardTitle>
-				<CardTitle className="text-xl text-center text-slate-700">アプリケーション</CardTitle>
-				<CardDescription className="text-center">
-					認証が必要です
-				</CardDescription>
-				<CardDescription className="text-center">
-					メールアドレスとパスワードを入力してください
-				</CardDescription>
-			</CardHeader>
+		<div className="space-y-6">
+			<Card className="w-full max-w-md">
+				<CardHeader className="space-y-1">
+					<div className="flex items-center justify-center mb-2">
+						<BookOpen className="h-8 w-8 text-primary" />
+					</div>
+					<CardTitle className="text-2xl text-center">学習進捗管理システム</CardTitle>
+					<CardDescription className="text-center">
+						メールアドレスとパスワードを入力してログインしてください
+					</CardDescription>
+				</CardHeader>
 			<CardContent>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -137,5 +145,44 @@ export function LoginForm() {
 				</Form>
 			</CardContent>
 		</Card>
+
+		{/* デモ用のログイン情報 */}
+		<Card className="w-full max-w-md">
+			<CardHeader>
+				<CardTitle className="text-lg flex items-center gap-2">
+					<Users className="h-5 w-5" />
+					デモ用アカウント
+				</CardTitle>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="grid grid-cols-1 gap-3">
+					<Alert>
+						<Users className="h-4 w-4" />
+						<AlertDescription>
+							<div className="space-y-1">
+								<div className="font-semibold">管理者アカウント</div>
+								<div className="text-sm">
+									Email: admin@example.com<br />
+									Password: password123
+								</div>
+							</div>
+						</AlertDescription>
+					</Alert>
+					<Alert>
+						<BookOpen className="h-4 w-4" />
+						<AlertDescription>
+							<div className="space-y-1">
+								<div className="font-semibold">受講者アカウント</div>
+								<div className="text-sm">
+									Email: learner@example.com<br />
+									Password: password123
+								</div>
+							</div>
+						</AlertDescription>
+					</Alert>
+				</div>
+			</CardContent>
+		</Card>
+	</div>
 	);
 }
