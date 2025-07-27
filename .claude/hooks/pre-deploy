@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Pre-deploy hook for Next.js Application Template
+# このフックは Claude Code による本番デプロイ前に自動実行されます
+
+set -e
+
+echo "🚀 Pre-deployment checks..."
+
+# 1. 本番環境変数の確認
+echo "⚙️  Checking production environment variables..."
+required_vars=("NEXTAUTH_SECRET" "NEXT_PUBLIC_SUPABASE_URL" "NEXT_PUBLIC_SUPABASE_ANON_KEY" "SUPABASE_SERVICE_ROLE_KEY")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        missing_vars+=("$var")
+    fi
+done
+
+if [ ${#missing_vars[@]} -ne 0 ]; then
+    echo "❌ Missing required environment variables:"
+    printf '  - %s\n' "${missing_vars[@]}"
+    exit 1
+fi
+
+# 2. データベースマイグレーション確認
+echo "🗄️  Checking database migrations..."
+if [ -d "supabase/migrations" ]; then
+    # 未適用のマイグレーションがあるかチェック
+    echo "📋 Database migrations found - ensure all migrations are applied to production"
+    echo "⚠️  Run 'supabase db push' if needed before deployment"
+fi
+
+# 3. 本番ビルドテスト
+echo "🏭 Testing production build..."
+if command -v pnpm &> /dev/null; then
+    NODE_ENV=production pnpm build || {
+        echo "❌ Production build failed"
+        exit 1
+    }
+    
+    # ビルドサイズチェック
+    if [ -d ".next" ]; then
+        echo "📦 Build completed successfully"
+        if [ -f ".next/static/chunks/pages/_app-*.js" ]; then
+            app_size=$(du -h .next/static/chunks/pages/_app-*.js | cut -f1)
+            echo "📊 App bundle size: $app_size"
+        fi
+    fi
+else
+    echo "❌ pnpm not found - cannot verify production build"
+    exit 1
+fi
+
+# 4. セキュリティ最終チェック
+echo "🔐 Running final security audit..."
+if command -v pnpm &> /dev/null; then
+    pnpm audit --audit-level critical || {
+        echo "❌ Critical security vulnerabilities found"
+        exit 1
+    }
+    
+    # パッケージの信頼性チェック
+    pnpm audit --audit-level high || {
+        echo "⚠️  High severity vulnerabilities found - review before deployment"
+    }
+else
+    echo "⚠️  Cannot run security audit without pnpm"
+fi
+
+# 5. パフォーマンステスト
+echo "⚡ Running performance checks..."
+if command -v pnpm &> /dev/null && [ -f "playwright.config.ts" ]; then
+    # Lighthouse CI があれば実行
+    if command -v lhci &> /dev/null; then
+        echo "🔍 Running Lighthouse CI..."
+        lhci autorun || {
+            echo "⚠️  Performance checks failed - review before deployment"
+        }
+    else
+        echo "⚠️  Lighthouse CI not available - manual performance testing recommended"
+    fi
+fi
+
+# 6. 依存関係の最終確認
+echo "📦 Verifying dependencies..."
+if command -v pnpm &> /dev/null; then
+    # lockfile の整合性確認
+    pnpm install --frozen-lockfile || {
+        echo "❌ Dependency lockfile mismatch"
+        exit 1
+    }
+fi
+
+# 7. バックアップ確認
+echo "💾 Checking backup status..."
+echo "⚠️  Ensure database and critical data backups are recent"
+echo "📅 Last backup should be within 24 hours for production deployment"
+
+echo "✅ All pre-deployment checks passed!"
+echo "🚀 Ready for production deployment"

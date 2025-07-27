@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Pre-push hook for Next.js Application Template
+# このフックは Claude Code によるプッシュ前に自動実行されます
+
+set -e
+
+echo "🚀 Pre-push checks..."
+
+# 1. E2Eテスト実行（本格的な統合テスト）
+echo "🎭 Running E2E tests..."
+if command -v pnpm &> /dev/null; then
+    if [ -f "playwright.config.ts" ]; then
+        pnpm test:e2e || {
+            echo "❌ E2E tests failed"
+            exit 1
+        }
+    else
+        echo "⚠️  No E2E tests configuration found"
+    fi
+else
+    echo "⚠️  pnpm not found, skipping E2E tests"
+fi
+
+# 2. セキュリティチェック
+echo "🔐 Running security checks..."
+if command -v pnpm &> /dev/null; then
+    # 脆弱性チェック
+    pnpm audit --audit-level moderate || {
+        echo "⚠️  Security vulnerabilities found - please review"
+    }
+else
+    echo "⚠️  pnpm not found, skipping security checks"
+fi
+
+# 3. 本番ビルドテスト
+echo "🏭 Testing production build..."
+if command -v pnpm &> /dev/null; then
+    NODE_ENV=production pnpm build || {
+        echo "❌ Production build failed"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping production build test"
+fi
+
+# 4. バンドルサイズチェック
+echo "📊 Checking bundle size..."
+if command -v pnpm &> /dev/null && [ -d ".next" ]; then
+    # Next.js の bundle analyzer があれば実行
+    if grep -q "@next/bundle-analyzer" package.json 2>/dev/null; then
+        echo "📈 Bundle analysis available - check .next/analyze for details"
+    fi
+else
+    echo "⚠️  Build output not found, skipping bundle size check"
+fi
+
+echo "✅ All pre-push checks passed!"

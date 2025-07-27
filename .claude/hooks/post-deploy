@@ -1,0 +1,120 @@
+#!/bin/bash
+
+# Post-deploy hook for Next.js Application Template
+# このフックは Claude Code による本番デプロイ後に自動実行されます
+
+set -e
+
+echo "✅ Post-deployment verification..."
+
+# デプロイ先URL（環境変数で設定可能）
+DEPLOY_URL=${DEPLOY_URL:-"https://your-app.vercel.app"}
+
+# 1. ヘルスチェック
+echo "🏥 Running health checks..."
+if command -v curl &> /dev/null; then
+    # メインページの確認
+    echo "🔍 Checking main page..."
+    if curl -f -s "$DEPLOY_URL" > /dev/null; then
+        echo "✅ Main page is accessible"
+    else
+        echo "❌ Main page is not accessible"
+        exit 1
+    fi
+    
+    # API エンドポイントの確認
+    echo "🔍 Checking API endpoints..."
+    if curl -f -s "$DEPLOY_URL/api/health" > /dev/null 2>&1; then
+        echo "✅ API endpoints are responsive"
+    else
+        echo "⚠️  API health check endpoint not found - manual verification recommended"
+    fi
+    
+    # 認証エンドポイントの確認
+    if curl -f -s "$DEPLOY_URL/api/auth/providers" > /dev/null 2>&1; then
+        echo "✅ Authentication endpoints are accessible"
+    else
+        echo "⚠️  Authentication endpoints may need verification"
+    fi
+else
+    echo "⚠️  curl not available - manual health checks required"
+fi
+
+# 2. データベース接続確認
+echo "🗄️  Verifying database connectivity..."
+echo "⚠️  Ensure database is accessible from production environment"
+echo "📊 Check Supabase dashboard for connection status"
+
+# 3. 環境変数確認（本番環境で）
+echo "⚙️  Environment configuration status..."
+echo "✅ Production environment variables should be verified via platform dashboard"
+
+# 4. 監視・アラート設定確認
+echo "📊 Checking monitoring setup..."
+echo "⚠️  Verify the following monitoring is active:"
+echo "  - Error tracking (Sentry/similar)"
+echo "  - Performance monitoring"
+echo "  - Uptime monitoring"
+echo "  - Database monitoring"
+
+# 5. ログ確認
+echo "📋 Checking deployment logs..."
+echo "⚠️  Review deployment logs for any warnings or errors"
+echo "📊 Monitor application logs for the first few minutes"
+
+# 6. CDN/キャッシュ確認
+echo "🌐 Checking CDN and cache status..."
+if command -v curl &> /dev/null; then
+    # キャッシュヘッダーの確認
+    echo "🔍 Checking cache headers..."
+    cache_headers=$(curl -I -s "$DEPLOY_URL" | grep -i cache || echo "No cache headers found")
+    echo "📊 Cache headers: $cache_headers"
+fi
+
+# 7. セキュリティヘッダー確認
+echo "🔐 Verifying security headers..."
+if command -v curl &> /dev/null; then
+    echo "🔍 Checking security headers..."
+    security_headers=$(curl -I -s "$DEPLOY_URL" | grep -E -i "(x-frame-options|x-content-type-options|strict-transport-security)" || echo "Some security headers may be missing")
+    echo "🔒 Security headers status: $security_headers"
+fi
+
+# 8. パフォーマンス初期確認
+echo "⚡ Initial performance check..."
+if command -v curl &> /dev/null; then
+    echo "🔍 Measuring response time..."
+    response_time=$(curl -o /dev/null -s -w '%{time_total}' "$DEPLOY_URL")
+    echo "⏱️  Response time: ${response_time}s"
+    
+    # 警告しきい値（5秒）
+    if (( $(echo "$response_time > 5.0" | bc -l 2>/dev/null || echo "0") )); then
+        echo "⚠️  Response time is slower than expected"
+    else
+        echo "✅ Response time is acceptable"
+    fi
+fi
+
+# 9. 自動通知（オプション）
+echo "📢 Deployment notification..."
+echo "✅ Deployment completed successfully at $(date)"
+echo "🌐 Application URL: $DEPLOY_URL"
+
+# Slack/Discord通知（環境変数で設定されている場合）
+if [ -n "$SLACK_WEBHOOK_URL" ]; then
+    curl -X POST -H 'Content-type: application/json' \
+        --data "{\"text\":\"🚀 Deployment completed: $DEPLOY_URL\"}" \
+        "$SLACK_WEBHOOK_URL" || echo "⚠️  Slack notification failed"
+fi
+
+# 10. 次のステップ推奨事項
+echo ""
+echo "📋 Recommended next steps:"
+echo "  1. Monitor error rates for the next 30 minutes"
+echo "  2. Check user feedback/support channels"
+echo "  3. Verify critical user flows manually"
+echo "  4. Review performance metrics"
+echo "  5. Confirm backup systems are operational"
+
+echo ""
+echo "✅ Post-deployment verification completed!"
+echo "🎉 Deployment successful - monitor for any issues"

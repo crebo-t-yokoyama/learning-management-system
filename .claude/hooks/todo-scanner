@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# TODO Scanner - コード内のTODO/FIXME/HACKを検出
+# Claude Code hooks用スクリプト
+
+set -e
+
+echo "🔍 Scanning for TODOs, FIXMEs, and technical debt..."
+
+# 検索対象パターン
+PATTERNS="TODO|FIXME|HACK|XXX|@deprecated"
+
+# 検索対象ディレクトリ
+SEARCH_DIRS="src"
+
+# 除外パターン
+EXCLUDE_PATTERN="node_modules|\.next|\.git|dist|build"
+
+# 結果ファイル
+OUTPUT_FILE="docs/99_other/todo-scan-results.tmp"
+
+# 前回の結果と比較用
+PREV_FILE="docs/99_other/todo-scan-previous.tmp"
+
+# 一時ファイルクリア
+> "$OUTPUT_FILE"
+
+# TODO/FIXME等を検索
+if command -v rg &> /dev/null; then
+    # ripgrepが利用可能な場合
+    rg -n -i "($PATTERNS):" $SEARCH_DIRS 2>/dev/null | while IFS=: read -r file line content; do
+        # 優先度判定
+        priority="低"
+        if echo "$content" | grep -qi -E "(security|auth|vulnerability|critical|urgent)"; then
+            priority="高"
+        elif echo "$content" | grep -qi -E "(performance|refactor|debt|deprecated)"; then
+            priority="中"
+        fi
+        
+        echo "- [ ] **[$priority]** $file:$line - $content" >> "$OUTPUT_FILE"
+    done
+else
+    # grepフォールバック
+    find $SEARCH_DIRS -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) ! -path "*/node_modules/*" ! -path "*/.next/*" -exec grep -Hn -i -E "($PATTERNS):" {} \; 2>/dev/null | while IFS=: read -r file line content; do
+        priority="低"
+        if echo "$content" | grep -qi -E "(security|auth|vulnerability|critical|urgent)"; then
+            priority="高"
+        elif echo "$content" | grep -qi -E "(performance|refactor|debt|deprecated)"; then
+            priority="中"
+        fi
+        
+        echo "- [ ] **[$priority]** $file:$line - $content" >> "$OUTPUT_FILE"
+    done
+fi
+
+# 結果数をカウント
+total_count=$(wc -l < "$OUTPUT_FILE" 2>/dev/null || echo 0)
+high_count=$(grep -c "\*\*\[高\]\*\*" "$OUTPUT_FILE" 2>/dev/null || echo 0)
+medium_count=$(grep -c "\*\*\[中\]\*\*" "$OUTPUT_FILE" 2>/dev/null || echo 0)
+low_count=$(grep -c "\*\*\[低\]\*\*" "$OUTPUT_FILE" 2>/dev/null || echo 0)
+
+# 前回との差分チェック
+new_todos=0
+if [ -f "$PREV_FILE" ]; then
+    if ! diff -q "$OUTPUT_FILE" "$PREV_FILE" >/dev/null 2>&1; then
+        new_todos=1
+        echo "📝 New TODOs or changes detected"
+    fi
+fi
+
+# 現在の結果を保存
+cp "$OUTPUT_FILE" "$PREV_FILE" 2>/dev/null || true
+
+# 統計情報を表示
+echo "📊 TODO Statistics:"
+echo "   Total: $total_count"
+echo "   High: $high_count, Medium: $medium_count, Low: $low_count"
+
+# 新しいTODOがある場合はtechnical-debt.mdを更新
+if [ $new_todos -eq 1 ] && [ $total_count -gt 0 ]; then
+    echo "🔄 Updating technical debt documentation..."
+    
+    # technical-debt.mdの統計情報セクションを更新
+    if [ -f "docs/99_other/technical-debt.md" ]; then
+        # 統計情報セクションを更新（簡単な置換）
+        sed -i "s/\*\*総TODO数\*\*: [0-9]* 個/**総TODO数**: $total_count 個/" docs/99_other/technical-debt.md 2>/dev/null || true
+        sed -i "s/\*\*高優先度\*\*: [0-9]* 個/**高優先度**: $high_count 個/" docs/99_other/technical-debt.md 2>/dev/null || true
+        sed -i "s/\*\*中優先度\*\*: [0-9]* 個/**中優先度**: $medium_count 個/" docs/99_other/technical-debt.md 2>/dev/null || true
+        sed -i "s/\*\*低優先度\*\*: [0-9]* 個/**低優先度**: $low_count 個/" docs/99_other/technical-debt.md 2>/dev/null || true
+    fi
+    
+    echo "✅ Technical debt documentation updated"
+fi
+
+# 一時ファイル削除
+rm -f "$OUTPUT_FILE"
+
+echo "🔍 TODO scan completed"

@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Post-checkout hook for Next.js Application Template
+# このフックは Claude Code によるブランチ切り替え後に自動実行されます
+
+set -e
+
+# 引数を取得（前のHEAD、新しいHEAD、ブランチチェックアウトかファイルチェックアウトか）
+previous_head=$1
+new_head=$2
+branch_checkout=$3
+
+# ブランチチェックアウトの場合のみ実行
+if [ "$branch_checkout" = "1" ]; then
+    echo "🔄 Post-checkout operations..."
+
+    # 1. 依存関係の変更チェック
+    echo "📦 Checking for dependency changes..."
+    if command -v pnpm &> /dev/null; then
+        if [ -f "package.json" ]; then
+            # package.json が変更されているかチェック
+            if ! git diff --quiet "$previous_head" "$new_head" -- package.json 2>/dev/null; then
+                echo "📋 package.json changed - updating dependencies..."
+                pnpm install || {
+                    echo "⚠️  Failed to install dependencies"
+                }
+            else
+                echo "✅ No dependency changes detected"
+            fi
+        fi
+    else
+        echo "⚠️  pnpm not found, skipping dependency check"
+    fi
+
+    # 2. 環境設定ファイルの確認
+    echo "⚙️  Checking environment configuration..."
+    if [ ! -f ".env.local" ]; then
+        echo "⚠️  .env.local not found - you may need to create it"
+        if [ -f ".env.example" ]; then
+            echo "📝 .env.example is available as a template"
+        fi
+    fi
+
+    # 3. TypeScript設定の確認
+    echo "📝 Checking TypeScript configuration..."
+    if command -v pnpm &> /dev/null; then
+        pnpm type-check || {
+            echo "⚠️  TypeScript errors found in this branch"
+        }
+    fi
+
+    # 4. Next.js キャッシュのクリア（必要に応じて）
+    echo "🧹 Cleaning build cache..."
+    if [ -d ".next" ]; then
+        rm -rf .next
+        echo "✅ Next.js cache cleared"
+    fi
+
+    echo "✅ Post-checkout operations completed!"
+else
+    echo "📄 File checkout detected - skipping branch-specific operations"
+fi

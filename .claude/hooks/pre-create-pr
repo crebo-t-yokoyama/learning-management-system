@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# Pre-create-PR hook for Next.js Application Template
+# このフックは Claude Code によるPR作成前に自動実行されます
+
+set -e
+
+echo "📋 Pre-PR creation checks..."
+
+# 1. 完全なテストスイート実行
+echo "🧪 Running complete test suite..."
+if command -v pnpm &> /dev/null; then
+    # ユニットテスト
+    pnpm test --run || {
+        echo "❌ Unit tests failed"
+        exit 1
+    }
+    
+    # E2Eテスト
+    if [ -f "playwright.config.ts" ]; then
+        pnpm test:e2e || {
+            echo "❌ E2E tests failed"
+            exit 1
+        }
+    fi
+else
+    echo "⚠️  pnpm not found, skipping tests"
+fi
+
+# 2. コードカバレッジチェック
+echo "📊 Checking code coverage..."
+if command -v pnpm &> /dev/null; then
+    pnpm test --coverage --run || {
+        echo "⚠️  Coverage check failed"
+    }
+else
+    echo "⚠️  pnpm not found, skipping coverage check"
+fi
+
+# 3. セキュリティ・脆弱性チェック
+echo "🔐 Running security audit..."
+if command -v pnpm &> /dev/null; then
+    pnpm audit --audit-level high || {
+        echo "⚠️  High severity vulnerabilities found"
+    }
+else
+    echo "⚠️  pnpm not found, skipping security audit"
+fi
+
+# 4. ビルド最適化チェック
+echo "⚡ Checking build optimization..."
+if command -v pnpm &> /dev/null; then
+    NODE_ENV=production pnpm build || {
+        echo "❌ Production build failed"
+        exit 1
+    }
+    
+    # バンドルサイズの警告
+    if [ -d ".next" ]; then
+        echo "📦 Build completed - review bundle size in .next/analyze if available"
+    fi
+else
+    echo "⚠️  pnpm not found, skipping build check"
+fi
+
+# 5. ドキュメント更新チェック
+echo "📚 Checking documentation..."
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+main_branch="main"
+
+# 新機能ブランチの場合、ドキュメント更新を推奨
+if [[ "$current_branch" =~ ^feature/ ]]; then
+    echo "🔍 Feature branch detected - consider updating documentation:"
+    echo "  - README.md"
+    echo "  - docs/ directory"
+    echo "  - CLAUDE.md (if adding new capabilities)"
+fi
+
+# API変更の場合の警告
+if git diff --name-only "$main_branch"..HEAD | grep -q "src/app/api/"; then
+    echo "⚠️  API changes detected - ensure:"
+    echo "  - API documentation is updated"
+    echo "  - Breaking changes are documented"
+    echo "  - Migration guide is provided if needed"
+fi
+
+echo "✅ Pre-PR checks completed!"
+echo "🚀 Ready to create Pull Request"

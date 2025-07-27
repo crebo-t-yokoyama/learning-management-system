@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# Pre-feature-start hook for Next.js Application Template
+# このフックは Claude Code による新機能開発開始時に自動実行されます
+
+set -e
+
+echo "🆕 Starting new feature development..."
+
+# 現在のブランチ名を取得
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+main_branch="main"
+
+# 1. ブランチ命名規則チェック
+echo "🏷️  Checking branch naming convention..."
+if [[ "$current_branch" =~ ^(feature|fix|chore|docs|refactor|test)\/[a-z0-9-]+$ ]]; then
+    echo "✅ Branch name follows convention: $current_branch"
+    branch_type=$(echo "$current_branch" | cut -d'/' -f1)
+    branch_name=$(echo "$current_branch" | cut -d'/' -f2)
+else
+    echo "⚠️  Branch name should follow pattern: type/description"
+    echo "   Examples: feature/user-profile, fix/login-bug, chore/update-deps"
+    echo "   Current: $current_branch"
+fi
+
+# 2. 最新のmainブランチとの同期確認
+echo "🔄 Checking branch synchronization..."
+git fetch origin "$main_branch" || {
+    echo "⚠️  Failed to fetch latest main branch"
+}
+
+# mainからの差分確認
+commits_behind=$(git rev-list --count HEAD..origin/"$main_branch" 2>/dev/null || echo "unknown")
+if [ "$commits_behind" != "0" ] && [ "$commits_behind" != "unknown" ]; then
+    echo "⚠️  Your branch is $commits_behind commits behind main"
+    echo "   Consider rebasing: git rebase origin/$main_branch"
+else
+    echo "✅ Branch is up to date with main"
+fi
+
+# 3. 関連イシューの確認
+echo "🎫 Checking for related issues..."
+if [[ "$current_branch" =~ [0-9]+ ]]; then
+    issue_number=$(echo "$current_branch" | grep -o '[0-9]\+' | head -1)
+    echo "🔗 Potential issue number detected: #$issue_number"
+    echo "   Ensure this issue exists and is assigned to you"
+else
+    echo "💡 Consider linking this branch to a GitHub issue"
+    echo "   Include issue number in branch name (e.g., feature/123-user-profile)"
+fi
+
+# 4. 開発環境セットアップ確認
+echo "⚙️  Checking development environment..."
+
+# Node.js バージョン確認
+if command -v node &> /dev/null; then
+    node_version=$(node --version)
+    echo "📦 Node.js version: $node_version"
+    
+    # package.json の engines フィールドチェック
+    if [ -f "package.json" ] && command -v jq &> /dev/null; then
+        required_node=$(jq -r '.engines.node // "not specified"' package.json)
+        echo "📋 Required Node.js: $required_node"
+    fi
+fi
+
+# 依存関係の確認
+if [ -f "package.json" ] && command -v pnpm &> /dev/null; then
+    echo "📦 Installing/updating dependencies..."
+    pnpm install || {
+        echo "❌ Failed to install dependencies"
+        exit 1
+    }
+    echo "✅ Dependencies are up to date"
+fi
+
+# 5. 環境変数確認
+echo "🔧 Checking environment configuration..."
+if [ ! -f ".env.local" ]; then
+    echo "⚠️  .env.local not found"
+    if [ -f ".env.example" ]; then
+        echo "📝 Creating .env.local from .env.example template"
+        cp .env.example .env.local
+        echo "⚠️  Please update .env.local with your values"
+    else
+        echo "❌ No environment template found"
+    fi
+else
+    echo "✅ Environment configuration exists"
+fi
+
+# 6. 必要なサービス起動確認
+echo "🚀 Checking required services..."
+services_to_check=("database" "authentication")
+echo "📋 Ensure the following services are running:"
+for service in "${services_to_check[@]}"; do
+    echo "  - $service"
+done
+
+# Supabase ローカル確認
+if command -v supabase &> /dev/null; then
+    if supabase status &> /dev/null; then
+        echo "✅ Supabase local development is running"
+    else
+        echo "⚠️  Supabase local development is not running"
+        echo "   Start with: supabase start"
+    fi
+fi
+
+# 7. 開発サーバーテスト
+echo "🏗️  Testing development server..."
+if command -v pnpm &> /dev/null; then
+    echo "🔍 Verifying build configuration..."
+    pnpm type-check || {
+        echo "❌ TypeScript configuration has errors"
+        exit 1
+    }
+    echo "✅ TypeScript configuration is valid"
+fi
+
+# 8. テスト実行環境確認
+echo "🧪 Checking test environment..."
+if command -v pnpm &> /dev/null; then
+    echo "🔍 Running initial test suite..."
+    pnpm test --run || {
+        echo "❌ Existing tests are failing"
+        echo "   Fix existing tests before starting new feature development"
+        exit 1
+    }
+    echo "✅ All existing tests pass"
+fi
+
+# 9. 開発ツール確認
+echo "🛠️  Checking development tools..."
+dev_tools=("git" "node" "pnpm")
+missing_tools=()
+
+for tool in "${dev_tools[@]}"; do
+    if ! command -v "$tool" &> /dev/null; then
+        missing_tools+=("$tool")
+    fi
+done
+
+if [ ${#missing_tools[@]} -ne 0 ]; then
+    echo "❌ Missing development tools:"
+    printf '  - %s\n' "${missing_tools[@]}"
+    exit 1
+else
+    echo "✅ All required development tools are available"
+fi
+
+# 10. 推奨セットアップ確認
+echo "💡 Recommended setup checklist:"
+echo "  - [ ] IDE extensions installed (ESLint, Prettier, TypeScript)"
+echo "  - [ ] Git hooks configured"
+echo "  - [ ] Database schema reviewed"
+echo "  - [ ] Design system/UI components understood"
+echo "  - [ ] Testing patterns reviewed"
+
+# 11. 機能タイプ別の推奨事項
+echo ""
+echo "📋 Type-specific recommendations for '$branch_type':"
+case "$branch_type" in
+    "feature")
+        echo "  - Review existing similar features"
+        echo "  - Plan database schema changes"
+        echo "  - Consider UI/UX implications"
+        echo "  - Plan test coverage"
+        ;;
+    "fix")
+        echo "  - Reproduce the bug locally"
+        echo "  - Write a failing test first"
+        echo "  - Plan minimal change approach"
+        echo "  - Consider regression testing"
+        ;;
+    "refactor")
+        echo "  - Ensure comprehensive test coverage"
+        echo "  - Plan backward compatibility"
+        echo "  - Document changes thoroughly"
+        echo "  - Consider performance impact"
+        ;;
+    "chore")
+        echo "  - Review dependency changes"
+        echo "  - Check for breaking changes"
+        echo "  - Update documentation"
+        echo "  - Test in multiple environments"
+        ;;
+esac
+
+echo ""
+echo "✅ Feature development environment ready!"
+echo "🚀 Happy coding! Remember to commit frequently and write tests."

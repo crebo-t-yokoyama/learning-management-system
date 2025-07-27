@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Post-merge hook for Next.js Application Template
+# このフックは Claude Code によるマージ後に自動実行されます
+
+set -e
+
+echo "🔄 Post-merge operations..."
+
+# 1. 依存関係の更新チェック
+echo "📦 Checking for dependency updates..."
+if command -v pnpm &> /dev/null; then
+    if [ -f "package.json" ]; then
+        pnpm install || {
+            echo "⚠️  Failed to install dependencies"
+        }
+    fi
+else
+    echo "⚠️  pnpm not found, skipping dependency installation"
+fi
+
+# 2. データベースマイグレーションのチェック（Supabase）
+echo "🗄️  Checking for database migrations..."
+if [ -d "supabase/migrations" ]; then
+    echo "📋 Database migrations found - please check if they need to be applied"
+fi
+
+# 3. ビルドテスト
+echo "🏗️  Testing build after merge..."
+if command -v pnpm &> /dev/null; then
+    pnpm build || {
+        echo "⚠️  Build failed after merge - please check for conflicts"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping build test"
+fi
+
+# 4. テスト実行
+echo "🧪 Running tests after merge..."
+if command -v pnpm &> /dev/null; then
+    pnpm test --run || {
+        echo "⚠️  Tests failed after merge - please review changes"
+    }
+else
+    echo "⚠️  pnpm not found, skipping tests"
+fi
+
+echo "✅ Post-merge operations completed!"

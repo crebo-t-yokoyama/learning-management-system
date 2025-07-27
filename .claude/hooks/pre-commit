@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Pre-commit hook for Next.js Application Template
+# このフックは Claude Code によるコミット前に自動実行されます
+
+set -e
+
+
+echo "🔍 Pre-commit checks..."
+
+# 1. TypeScript型チェック
+echo "📝 Running TypeScript checks..."
+if command -v pnpm &> /dev/null; then
+    pnpm type-check || {
+        echo "❌ TypeScript type check failed"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping TypeScript checks"
+fi
+
+# 2. Biome linting
+echo "🔧 Running Biome linting..."
+if command -v pnpm &> /dev/null; then
+    pnpm lint || {
+        echo "❌ Biome linting failed"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping linting"
+fi
+
+# 3. ユニットテスト実行
+echo "🧪 Running unit tests..."
+if command -v pnpm &> /dev/null; then
+    pnpm test --run || {
+        echo "❌ Unit tests failed"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping tests"
+fi
+
+# 4. ビルドテスト
+echo "🏗️  Testing build..."
+if command -v pnpm &> /dev/null; then
+    pnpm build || {
+        echo "❌ Build failed"
+        exit 1
+    }
+else
+    echo "⚠️  pnpm not found, skipping build test"
+fi
+
+echo "✅ All pre-commit checks passed!"
+

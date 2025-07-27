@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Post-commit hook for project knowledge accumulation
+# プロジェクト知識自動蓄積システム
+
+set -e
+
+# コミットメッセージとハッシュを取得
+COMMIT_MSG=$(git log -1 --pretty=%B)
+COMMIT_HASH=$(git log -1 --pretty=%H | cut -c1-7)
+COMMIT_DATE=$(date '+%Y-%m-%d %H:%M')
+AUTHOR=$(git log -1 --pretty=%an)
+
+echo "📝 Updating project documentation..."
+
+# 重要な変更をdevelopment-log.mdに記録
+if [[ $COMMIT_MSG =~ ^(feat|fix|refactor|perf): ]]; then
+    {
+        echo ""
+        echo "### $COMMIT_DATE - $COMMIT_MSG"
+        echo "- **変更者**: $AUTHOR"
+        echo "- **コミット**: $COMMIT_HASH"
+        echo "- **詳細**: $(echo "$COMMIT_MSG" | tail -n +2 | head -n 3)"
+        echo ""
+    } >> docs/99_other/development-log.md
+    
+    echo "✅ Development log updated"
+fi
+
+# API変更を検出
+if git diff --name-only HEAD~1 | grep -q "src/app/api/"; then
+    {
+        echo ""
+        echo "### $COMMIT_DATE - API変更検出"
+        echo "- **変更ファイル**: $(git diff --name-only HEAD~1 | grep "src/app/api/" | tr '\n' ', ')"
+        echo "- **コミット**: $COMMIT_HASH - $COMMIT_MSG"
+        echo "- **要確認**: docs/10_architect/api-design.md の更新を検討"
+        echo ""
+    } >> docs/99_other/api-changes.md
+    
+    echo "⚠️  API changes detected - consider updating API documentation"
+fi
+
+# データベーススキーマ変更を検出
+if git diff --name-only HEAD~1 | grep -q -E "(migration|schema|database|supabase)"; then
+    {
+        echo ""
+        echo "### $COMMIT_DATE - データベース関連変更"
+        echo "- **変更内容**: $COMMIT_MSG"
+        echo "- **コミット**: $COMMIT_HASH"
+        echo "- **要確認**: docs/10_architect/database-design.md の更新を検討"
+        echo ""
+    } >> docs/99_other/development-log.md
+    
+    echo "🗄️  Database changes detected - consider updating database documentation"
+fi
+
+# 型定義変更を検出
+if git diff --name-only HEAD~1 | grep -q "src/types/"; then
+    echo "📊 Type definition changes detected - TypeScript types may need documentation update"
+fi
+
+# テスト追加を検出
+if git diff --name-only HEAD~1 | grep -q -E "(\\.test\\.|__tests__|e2e)"; then
+    echo "🧪 Test changes detected - consider updating test documentation if needed"
+fi
+
+# セキュリティ関連変更を検出
+if [[ $COMMIT_MSG =~ (security|auth|rls|validation) ]] || git diff --name-only HEAD~1 | grep -q -E "(auth|security|validation)"; then
+    {
+        echo ""
+        echo "### $COMMIT_DATE - セキュリティ関連変更"
+        echo "- **内容**: $COMMIT_MSG"
+        echo "- **コミット**: $COMMIT_HASH"
+        echo "- **要確認**: セキュリティドキュメント更新を検討"
+        echo ""
+    } >> docs/99_other/development-log.md
+    
+    echo "🔒 Security-related changes detected"
+fi
+
+# TODO/技術的負債スキャン実行
+if [ -x ".claude/hooks/todo-scanner" ]; then
+    .claude/hooks/todo-scanner
+fi
+
+echo "📚 Project knowledge accumulation completed"
