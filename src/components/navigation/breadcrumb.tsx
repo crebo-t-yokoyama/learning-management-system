@@ -16,6 +16,10 @@ const pathMapping: Record<string, string> = {
 	"/items": "アイテム管理",
 	"/items/new": "新規登録",
 	"/items/[id]/edit": "編集",
+	"/admin/dashboard": "管理画面",
+	"/admin/courses": "コース管理",
+	"/admin/courses/new": "新規作成",
+	"/admin/courses/[id]/edit": "編集",
 };
 
 function generateBreadcrumbs(pathname: string): BreadcrumbItem[] {
@@ -64,13 +68,22 @@ function generateBreadcrumbs(pathname: string): BreadcrumbItem[] {
 	return breadcrumbs;
 }
 
-interface BreadcrumbProps {
-	className?: string;
+interface CustomBreadcrumbItem {
+	label: string;
+	href: string;
+	current?: boolean;
 }
 
-export function Breadcrumb({ className }: BreadcrumbProps) {
+interface BreadcrumbProps {
+	className?: string;
+	items?: CustomBreadcrumbItem[];
+}
+
+export function Breadcrumb({ className, items }: BreadcrumbProps) {
 	const pathname = usePathname();
-	const breadcrumbs = generateBreadcrumbs(pathname);
+	
+	// カスタムアイテムが指定されている場合はそれを使用
+	const breadcrumbs = items ? items.map(item => ({ title: item.label, href: item.href })) : generateBreadcrumbs(pathname);
 
 	// ブレッドクラムが1つ以下の場合は表示しない
 	if (breadcrumbs.length <= 1) {
