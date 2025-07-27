@@ -120,3 +120,67 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+@layer utilities {
+	/* アクセシビリティとユーザビリティの向上 */
+	.required::after {
+		content: " *";
+		@apply text-red-500;
+	}
+	
+	.line-clamp-2 {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	
+	.line-clamp-3 {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	
+	/* フォーカス表示の改善 */
+	.focus-visible:focus-visible {
+		@apply outline-2 outline-offset-2 outline-blue-500;
+	}
+	
+	/* 読み込み状態のアニメーション */
+	.animate-pulse-gentle {
+		animation: pulse-gentle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+	
+	@keyframes pulse-gentle {
+		0%, 100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.8;
+		}
+	}
+	
+	/* スクロールバーのスタイリング */
+	.custom-scrollbar {
+		scrollbar-width: thin;
+		scrollbar-color: theme(colors.gray.300) transparent;
+	}
+	
+	.custom-scrollbar::-webkit-scrollbar {
+		width: 6px;
+	}
+	
+	.custom-scrollbar::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	
+	.custom-scrollbar::-webkit-scrollbar-thumb {
+		background-color: theme(colors.gray.300);
+		border-radius: 3px;
+	}
+	
+	.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+		background-color: theme(colors.gray.400);
+	}
+}
